@@ -11,23 +11,28 @@ struct Position {
 pub struct Chunk {
     data: Vec<u8>,
     line_starts: Vec<usize>,
+    line_feed_count: usize,
 }
 
 impl Chunk {
     fn new(data: Vec<u8>) -> Chunk {
-        let mut line_starts =
-            data.iter()
-                .enumerate()
-                .fold(vec![0], |mut line_starts, (i, &byte)| {
-                    if byte == b'\n' {
-                        line_starts.push(i + 1);
-                    }
-                    line_starts
-                });
+        let (mut line_starts, line_feed_count) = data.iter().enumerate().fold(
+            (vec![0], 0usize),
+            |(mut line_starts, feed_count), (i, &byte)| {
+                if byte == b'\n' {
+                    line_starts.push(i + 1);
+                }
+                (line_starts, feed_count + 1)
+            },
+        );
         if *line_starts.last().unwrap() != data.len() {
             line_starts.push(data.len());
         }
-        Self { data, line_starts }
+        Self {
+            data,
+            line_starts,
+            line_feed_count,
+        }
     }
 
     fn load(&mut self, data: Vec<u8>) {
