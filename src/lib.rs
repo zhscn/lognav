@@ -214,6 +214,19 @@ mod test {
             assert_eq!(chunk.calc_end(start), Position { row: 3, column: 0 });
         }
 
+        let chunk = str_to_chunk("\na\n");
+        assert_eq!(chunk.get_line_count(), 2);
+        assert_eq!(chunk.line_starts, vec![0, 1, 3]);
+        assert_eq!(chunk.get_line_content(0), Some(b"\n".as_slice()));
+        assert_eq!(chunk.get_line_content(1), Some(b"a\n".as_slice()));
+        assert_eq!(chunk.get_line_content(2), None);
+        assert_eq!(chunk.continue_to_next_chunk(), false);
+        assert_eq!(chunk.calc_end(start), Position { row: 2, column: 0 });
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(chunk.calc_end(start), Position { row: 3, column: 0 });
+        }
+
         let mut c = chunk.clone();
         c.relase();
         assert_eq!(c.data, vec![]);
