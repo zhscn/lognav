@@ -82,6 +82,41 @@ impl Chunk {
         }
         end
     }
+
+    fn calc_backward_start(&self) -> Position {
+        let mut pos = Position { row: 0, column: 0 };
+        if self.data.is_empty() {
+            return pos;
+        }
+
+        if self.continue_to_next_chunk() {
+            pos.column += self.data.len() - self.line_starts[self.line_starts.len() - 2];
+        }
+        pos
+    }
+
+    fn calc_backward_end(&self, start: Position) -> Position {
+        let mut end = start;
+        if self.data.is_empty() {
+            return end;
+        }
+
+        end.row += self.line_starts.len() - 2;
+        if !self.continue_to_next_chunk() {
+            end.row += 1;
+        }
+
+        if end.row != start.row {
+            end.column = 0;
+            if *self.data.first().unwrap() != b'\n' {
+                end.column = self.line_starts[1] - self.line_starts[0] - 1;
+            }
+        } else {
+            end.column += self.data.len() - self.line_starts[self.line_starts.len() - 2];
+        }
+
+        end
+    }
 }
 
 struct ChunkLoader {
@@ -146,6 +181,12 @@ mod test {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), start);
         }
+        assert_eq!(chunk.calc_backward_start(), start);
+        assert_eq!(chunk.calc_backward_end(start), start);
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(chunk.calc_backward_end(start), start);
+        }
 
         let chunk = str_to_chunk("a");
         assert_eq!(chunk.get_line_count(), 1);
@@ -157,6 +198,18 @@ mod test {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), Position { row: 1, column: 2 });
         }
+        assert_eq!(chunk.calc_backward_start(), Position { row: 0, column: 1 });
+        assert_eq!(
+            chunk.calc_backward_end(start),
+            Position { row: 0, column: 1 }
+        );
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(
+                chunk.calc_backward_end(start),
+                Position { row: 1, column: 2 }
+            );
+        }
 
         let chunk = str_to_chunk("\n");
         assert_eq!(chunk.get_line_count(), 1);
@@ -167,6 +220,18 @@ mod test {
         {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), Position { row: 2, column: 0 });
+        }
+        assert_eq!(chunk.calc_backward_start(), Position { row: 0, column: 0 });
+        assert_eq!(
+            chunk.calc_backward_end(start),
+            Position { row: 1, column: 0 }
+        );
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(
+                chunk.calc_backward_end(start),
+                Position { row: 2, column: 0 }
+            );
         }
 
         let chunk = str_to_chunk("\n\n");
@@ -181,6 +246,18 @@ mod test {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), Position { row: 3, column: 0 });
         }
+        assert_eq!(chunk.calc_backward_start(), Position { row: 0, column: 0 });
+        assert_eq!(
+            chunk.calc_backward_end(start),
+            Position { row: 2, column: 0 }
+        );
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(
+                chunk.calc_backward_end(start),
+                Position { row: 3, column: 0 }
+            );
+        }
 
         let chunk = str_to_chunk("a\n");
         assert_eq!(chunk.get_line_count(), 1);
@@ -191,6 +268,18 @@ mod test {
         {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), Position { row: 2, column: 0 });
+        }
+        assert_eq!(chunk.calc_backward_start(), Position { row: 0, column: 0 });
+        assert_eq!(
+            chunk.calc_backward_end(start),
+            Position { row: 1, column: 1 }
+        );
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(
+                chunk.calc_backward_end(start),
+                Position { row: 2, column: 1 }
+            );
         }
 
         let chunk = str_to_chunk("a\nb");
@@ -205,6 +294,18 @@ mod test {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), Position { row: 2, column: 1 });
         }
+        assert_eq!(chunk.calc_backward_start(), Position { row: 0, column: 1 });
+        assert_eq!(
+            chunk.calc_backward_end(start),
+            Position { row: 1, column: 1 }
+        );
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(
+                chunk.calc_backward_end(start),
+                Position { row: 2, column: 1 }
+            );
+        }
 
         let chunk = str_to_chunk("a\nb\n");
         assert_eq!(chunk.get_line_count(), 2);
@@ -218,6 +319,18 @@ mod test {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), Position { row: 3, column: 0 });
         }
+        assert_eq!(chunk.calc_backward_start(), Position { row: 0, column: 0 });
+        assert_eq!(
+            chunk.calc_backward_end(start),
+            Position { row: 2, column: 1 }
+        );
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(
+                chunk.calc_backward_end(start),
+                Position { row: 3, column: 1 }
+            );
+        }
 
         let chunk = str_to_chunk("\na\n");
         assert_eq!(chunk.get_line_count(), 2);
@@ -230,6 +343,18 @@ mod test {
         {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), Position { row: 3, column: 0 });
+        }
+        assert_eq!(chunk.calc_backward_start(), Position { row: 0, column: 0 });
+        assert_eq!(
+            chunk.calc_backward_end(start),
+            Position { row: 2, column: 0 }
+        );
+        {
+            let start = Position { row: 1, column: 1 };
+            assert_eq!(
+                chunk.calc_backward_end(start),
+                Position { row: 3, column: 0 }
+            );
         }
 
         let mut c = chunk.clone();
