@@ -1,3 +1,6 @@
+use anyhow::{bail, Result};
+use std::{cmp::min, fs::File, os::unix::fs::FileExt, path::PathBuf, str::FromStr};
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 struct Position {
     row: usize,
@@ -73,6 +76,47 @@ impl Chunk {
             end.column = 0;
         }
         end
+    }
+}
+
+struct ChunkLoader {
+    file: File,
+    chunk_size: usize,
+    file_size: usize,
+}
+
+impl ChunkLoader {
+    fn new(path: &str, chunk_size: usize) -> Result<Self> {
+        let path = PathBuf::from_str(path)?;
+        if !path.try_exists()? {
+            bail!("file not found: {:?}", path);
+        }
+        let file_size = path.metadata()?.len() as usize;
+        Ok(Self {
+            file: File::open(path)?,
+            chunk_size,
+            file_size,
+        })
+    }
+
+    fn chunk_count(&self) -> usize {
+        (self.file_size + self.chunk_size - 1) / self.chunk_size
+    }
+
+    fn load_chunk(&mut self, idx: usize) -> Result<Chunk> {
+        let offset = idx * self.chunk_size;
+        let length = min(self.chunk_size, self.file_size - offset);
+        let mut data = vec![0; length];
+        self.file.read_exact_at(&mut data, offset as u64)?;
+        Ok(Chunk::new(data))
+    }
+
+    fn resore_chunk(&mut self, chunk: &mut Chunk, idx: usize) -> Result<()> {
+        let offset = idx * self.chunk_size;
+        let length = min(self.chunk_size, self.file_size - offset);
+        chunk.load(vec![0; length]);
+        self.file.read_exact_at(&mut chunk.data, offset as u64)?;
+        Ok(())
     }
 }
 
