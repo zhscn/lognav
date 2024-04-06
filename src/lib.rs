@@ -4,7 +4,7 @@ struct Position {
     column: usize,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Chunk {
     data: Vec<u8>,
     line_starts: Vec<usize>,
@@ -169,5 +169,11 @@ mod test {
             let start = Position { row: 1, column: 1 };
             assert_eq!(chunk.calc_end(start), Position { row: 3, column: 0 });
         }
+
+        let mut c = chunk.clone();
+        c.relase();
+        assert_eq!(c.data, vec![]);
+        c.load(chunk.data.clone());
+        assert_eq!(c.data, chunk.data);
     }
 }
