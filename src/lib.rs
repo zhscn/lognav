@@ -1,5 +1,8 @@
-use anyhow::{bail, Result};
-use std::{cmp::min, fs::File, os::unix::fs::FileExt, path::PathBuf, str::FromStr};
+use anyhow::Result;
+use std::{
+    cmp::min,
+    io::{Read, Seek},
+};
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 struct Position {
@@ -134,43 +137,40 @@ impl Chunk {
     }
 }
 
-struct ChunkLoader {
-    file: File,
-    chunk_size: usize,
-    file_size: usize,
+struct ChunkLoader<T> {
+    reader: T,
+    chunk_size: u64,
+    total_size: u64,
 }
 
-impl ChunkLoader {
-    fn new(path: &str, chunk_size: usize) -> Result<Self> {
-        let path = PathBuf::from_str(path)?;
-        if !path.try_exists()? {
-            bail!("file not found: {:?}", path);
-        }
-        let file_size = path.metadata()?.len() as usize;
-        Ok(Self {
-            file: File::open(path)?,
+impl<T: Seek + Read> ChunkLoader<T> {
+    fn new(reader: T, chunk_size: u64, total_size: u64) -> Self {
+        Self {
+            reader,
             chunk_size,
-            file_size,
-        })
+            total_size,
+        }
     }
 
-    fn chunk_count(&self) -> usize {
-        (self.file_size + self.chunk_size - 1) / self.chunk_size
+    fn chunk_count(&self) -> u64 {
+        (self.total_size + self.chunk_size - 1) / self.chunk_size
     }
 
-    fn load_chunk(&mut self, idx: usize) -> Result<Chunk> {
+    fn load_chunk(&mut self, idx: u64) -> Result<Chunk> {
         let offset = idx * self.chunk_size;
-        let length = min(self.chunk_size, self.file_size - offset);
-        let mut data = vec![0; length];
-        self.file.read_exact_at(&mut data, offset as u64)?;
+        let length = min(self.chunk_size, self.total_size - offset);
+        self.reader.seek(std::io::SeekFrom::Start(offset as u64))?;
+        let mut data = vec![0; length as usize];
+        self.reader.read_exact(&mut data)?;
         Ok(Chunk::new(data))
     }
 
-    fn resore_chunk(&mut self, chunk: &mut Chunk, idx: usize) -> Result<()> {
+    fn resore_chunk(&mut self, chunk: &mut Chunk, idx: u64) -> Result<()> {
         let offset = idx * self.chunk_size;
-        let length = min(self.chunk_size, self.file_size - offset);
-        chunk.load(vec![0; length]);
-        self.file.read_exact_at(&mut chunk.data, offset as u64)?;
+        let length = min(self.chunk_size, self.total_size - offset);
+        chunk.load(vec![0; length as usize]);
+        self.reader.seek(std::io::SeekFrom::Start(offset as u64))?;
+        self.reader.read_exact(&mut chunk.data)?;
         Ok(())
     }
 }
