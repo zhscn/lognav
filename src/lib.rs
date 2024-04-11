@@ -39,14 +39,6 @@ impl Chunk {
         }
     }
 
-    fn load(&mut self, data: Vec<u8>) {
-        self.data = data;
-    }
-
-    fn relase(&mut self) {
-        self.data.clear();
-    }
-
     fn get_line_count(&self) -> usize {
         let c = self.line_feed_offset.len();
         if self.continue_to_next_chunk() {
@@ -163,15 +155,6 @@ impl<T: Seek + Read> ChunkLoader<T> {
         let mut data = vec![0; length as usize];
         self.reader.read_exact(&mut data)?;
         Ok(Chunk::new(data))
-    }
-
-    fn resore_chunk(&mut self, chunk: &mut Chunk, idx: u64) -> Result<()> {
-        let offset = idx * self.chunk_size;
-        let length = min(self.chunk_size, self.total_size - offset);
-        chunk.load(vec![0; length as usize]);
-        self.reader.seek(std::io::SeekFrom::Start(offset as u64))?;
-        self.reader.read_exact(&mut chunk.data)?;
-        Ok(())
     }
 }
 
@@ -371,11 +354,5 @@ mod test {
                 Position { row: 3, column: 0 }
             );
         }
-
-        let mut c = chunk.clone();
-        c.relase();
-        assert_eq!(c.data, vec![]);
-        c.load(chunk.data.clone());
-        assert_eq!(c.data, chunk.data);
     }
 }
